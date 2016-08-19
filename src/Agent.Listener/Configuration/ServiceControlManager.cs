@@ -3,82 +3,50 @@ using System.Linq;
 using Microsoft.VisualStudio.Services.Agent.Util;
 using System.IO;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Microsoft.VisualStudio.Services.Agent.Listener.Configuration
 {
 #if OS_WINDOWS
     [ServiceLocator(Default = typeof(WindowsServiceControlManager))]
-#elif OS_LINUX
+    public interface IWindowsServiceControlManager : IAgentService
+    {
+        void ConfigureService(AgentSettings settings, CommandSettings command);
+
+        void UnconfigureService();
+    }
+
+#endif
+
+#if OS_LINUX
     [ServiceLocator(Default = typeof(SystemDControlManager))]
 #elif OS_OSX
     [ServiceLocator(Default = typeof(OsxServiceControlManager))]
-#endif
-    // TODO: If this pattern repeats, avoid having this conditions and create WindowsServiceLocator/LinuxServiceLocator attribute
-    public interface IServiceControlManager : IAgentService
-    {
+    public interface ILinuxServiceControlManager : IAgentService
+        {
         void GenerateScripts(AgentSettings settings);
-
-        bool ConfigureService(AgentSettings settings, CommandSettings command);
-
-        void UnconfigureService();
-
-        void StartService();
-
-        void StopService();
-
-        bool CheckServiceExists(string serviceName);
-    }
-
-    public abstract class ServiceControlManager : AgentService, IServiceControlManager
-    {
-        public string ServiceName { get; set; }
-        public string ServiceDisplayName { get; set; }
-
-        protected ITerminal _term;
-
-        public override void Initialize(IHostContext hostContext)
-        {
-            base.Initialize(hostContext);
-            _term = hostContext.GetService<ITerminal>();
         }
+#endif
 
-        protected void CalculateServiceName(AgentSettings settings, string serviceNamePattern, string serviceDisplayNamePattern)
+    public class ServiceControlManager : AgentService
+    {
+        public void CalculateServiceName(AgentSettings settings, string serviceNamePattern, string serviceDisplayNamePattern, out string serviceName, out string serviceDisplayName)
         {
-            Trace.Info(nameof(this.CalculateServiceName));
-            var accountName = new Uri(settings.ServerUrl).Host.Split('.').FirstOrDefault();
+            Trace.Entering();
+            serviceName = string.Empty;
+            serviceDisplayName = string.Empty;
 
+            string accountName = new Uri(settings.ServerUrl).Host.Split('.').FirstOrDefault();
             if (string.IsNullOrEmpty(accountName))
             {
-                // TODO: Localize this error message:
-                throw new InvalidOperationException("CannotFindHostName");
-            }
-
-            ServiceName = StringUtil.Format(serviceNamePattern, accountName, settings.AgentName);
-            ServiceDisplayName = StringUtil.Format(serviceDisplayNamePattern, accountName, settings.AgentName);
+                throw new InvalidOperationException(StringUtil.Loc("CannotFindHostName", settings.ServerUrl));
         }
 
-        protected void SaveServiceSettings()
-        {
-            string serviceConfigPath = IOUtil.GetServiceConfigFilePath();
-            if(File.Exists(serviceConfigPath))
-            {
-                IOUtil.DeleteFile(serviceConfigPath);
-            }
-            
-            File.WriteAllText(serviceConfigPath, ServiceName, new UTF8Encoding(false));
-            File.SetAttributes(serviceConfigPath, File.GetAttributes(serviceConfigPath) | FileAttributes.Hidden);
+            serviceName = StringUtil.Format(serviceNamePattern, accountName, settings.AgentName);
+            serviceDisplayName = StringUtil.Format(serviceDisplayNamePattern, accountName, settings.AgentName);
+
+            Trace.Info($"Service name '{serviceName}' display name '{serviceDisplayName}' will be used for service configuration.");
         }
-
-        public abstract void GenerateScripts(AgentSettings settings);
-
-        public abstract bool ConfigureService(AgentSettings settings, CommandSettings command);
-
-        public abstract void UnconfigureService();
-
-        public abstract void StartService();
-
-        public abstract void StopService();
-
-        public abstract bool CheckServiceExists(string serviceName);
     }
 }

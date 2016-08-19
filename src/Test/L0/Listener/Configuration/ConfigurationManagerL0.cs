@@ -11,8 +11,6 @@ using Microsoft.VisualStudio.Services.Agent.Listener.Configuration;
 using Microsoft.VisualStudio.Services.WebApi;
 using System.Security.Cryptography;
 using System.Threading;
-using Microsoft.VisualStudio.Services.Agent.Util;
-using System.IO;
 
 namespace Microsoft.VisualStudio.Services.Agent.Tests.Listener.Configuration
 {
@@ -23,7 +21,6 @@ namespace Microsoft.VisualStudio.Services.Agent.Tests.Listener.Configuration
         private Mock<IPromptManager> _promptManager;
         private Mock<IConfigurationStore> _store;
         private Mock<IExtensionManager> _extnMgr;
-        private Mock<IServiceControlManager> _serviceControlManager;
         private Mock<IRSAKeyManager> _rsaKeyManager;
         private ICapabilitiesManager _capabilitiesManager;
         private string _expectedToken = "expectedToken";
@@ -44,7 +41,6 @@ namespace Microsoft.VisualStudio.Services.Agent.Tests.Listener.Configuration
             _promptManager = new Mock<IPromptManager>();
             _store = new Mock<IConfigurationStore>();
             _extnMgr = new Mock<IExtensionManager>();
-            _serviceControlManager = new Mock<IServiceControlManager>();
             _rsaKeyManager = new Mock<IRSAKeyManager>();
 
 
@@ -73,8 +69,6 @@ namespace Microsoft.VisualStudio.Services.Agent.Tests.Listener.Configuration
 
             _credMgr.Setup(x => x.GetCredentialProvider(It.IsAny<string>())).Returns(new TestAgentCredential());
 
-            _serviceControlManager.Setup(x => x.GenerateScripts(It.IsAny<AgentSettings>()));
-
             var expectedPools = new List<TaskAgentPool>() { new TaskAgentPool(_expectedPoolName) { Id = _expectedPoolId } };
             _agentServer.Setup(x => x.GetAgentPoolsAsync(It.IsAny<string>())).Returns(Task.FromResult(expectedPools));
 
@@ -100,7 +94,6 @@ namespace Microsoft.VisualStudio.Services.Agent.Tests.Listener.Configuration
             tc.SetSingleton<IExtensionManager>(_extnMgr.Object);
             tc.SetSingleton<IAgentServer>(_agentServer.Object);
             tc.SetSingleton<ICapabilitiesManager>(_capabilitiesManager);
-            tc.SetSingleton<IServiceControlManager>(_serviceControlManager.Object);
 
             tc.SetSingleton<IRSAKeyManager>(_rsaKeyManager.Object);
             tc.EnqueueInstance<IAgentServer>(_agentServer.Object);
