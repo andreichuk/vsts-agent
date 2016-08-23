@@ -1,10 +1,6 @@
 using System;
 using System.Linq;
 using Microsoft.VisualStudio.Services.Agent.Util;
-using System.IO;
-using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace Microsoft.VisualStudio.Services.Agent.Listener.Configuration
 {
@@ -24,9 +20,9 @@ namespace Microsoft.VisualStudio.Services.Agent.Listener.Configuration
 #elif OS_OSX
     [ServiceLocator(Default = typeof(OsxServiceControlManager))]
     public interface ILinuxServiceControlManager : IAgentService
-        {
+    {
         void GenerateScripts(AgentSettings settings);
-        }
+    }
 #endif
 
     public class ServiceControlManager : AgentService
@@ -41,7 +37,7 @@ namespace Microsoft.VisualStudio.Services.Agent.Listener.Configuration
             if (string.IsNullOrEmpty(accountName))
             {
                 throw new InvalidOperationException(StringUtil.Loc("CannotFindHostName", settings.ServerUrl));
-        }
+            }
 
             serviceName = StringUtil.Format(serviceNamePattern, accountName, settings.AgentName);
             serviceDisplayName = StringUtil.Format(serviceDisplayNamePattern, accountName, settings.AgentName);

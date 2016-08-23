@@ -5,8 +5,6 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Security.Principal;
 using System.ServiceProcess;
-using System.Threading;
-using System.Threading.Tasks;
 using System.Security;
 using System.Text;
 
@@ -63,13 +61,13 @@ namespace Microsoft.VisualStudio.Services.Agent.Listener.Configuration
                     {
                         if (!command.Unattended)
                         {
-                    Trace.Info("Invalid credential entered");
-                    _term.WriteLine(StringUtil.Loc("InvalidWindowsCredential"));
-                }
+                            Trace.Info("Invalid credential entered");
+                            _term.WriteLine(StringUtil.Loc("InvalidWindowsCredential"));
+                        }
                         else
                         {
                             throw new SecurityException(StringUtil.Loc("InvalidWindowsCredential"));
-            }
+                        }
                     }
                 }
             }
@@ -116,7 +114,7 @@ namespace Microsoft.VisualStudio.Services.Agent.Listener.Configuration
 
                     service.Start();
                     _term.WriteLine(StringUtil.Loc("ServiceStartedSuccessfully", serviceName));
-        }
+                }
                 else
                 {
                     throw new InvalidOperationException(StringUtil.Loc("CanNotFindService", serviceName));
@@ -143,7 +141,7 @@ namespace Microsoft.VisualStudio.Services.Agent.Listener.Configuration
             }
 
             IOUtil.DeleteFile(serviceConfigPath);
-            }
+        }
 
         private void SaveServiceSettings(string serviceName)
         {
@@ -151,7 +149,7 @@ namespace Microsoft.VisualStudio.Services.Agent.Listener.Configuration
             if (File.Exists(serviceConfigPath))
             {
                 IOUtil.DeleteFile(serviceConfigPath);
-        }
+            }
 
             File.WriteAllText(serviceConfigPath, serviceName, new UTF8Encoding(false));
             File.SetAttributes(serviceConfigPath, File.GetAttributes(serviceConfigPath) | FileAttributes.Hidden);

@@ -168,7 +168,7 @@ namespace Microsoft.VisualStudio.Services.Agent.Listener.Configuration
                     _term.WriteError(e);
                     _term.WriteError(StringUtil.Loc("FailedToFindPool"));
                 }
-                }
+            }
 
             TaskAgent agent;
             while (true)
@@ -326,12 +326,12 @@ namespace Microsoft.VisualStudio.Services.Agent.Listener.Configuration
                 return;
             }
             else
+            {
+                if (!new WindowsPrincipal(WindowsIdentity.GetCurrent()).IsInRole(WindowsBuiltInRole.Administrator))
                 {
-                    if (!new WindowsPrincipal(WindowsIdentity.GetCurrent()).IsInRole(WindowsBuiltInRole.Administrator))
-                    {
-                        Trace.Error("Needs Administrator privileges for configure agent as windows service.");
-                        throw new SecurityException(StringUtil.Loc("NeedAdminForConfigAgentWinService"));
-                    }
+                    Trace.Error("Needs Administrator privileges for configure agent as windows service.");
+                    throw new SecurityException(StringUtil.Loc("NeedAdminForConfigAgentWinService"));
+                }
 
                 Trace.Info("Configuring to run the agent as service");
                 var serviceControlManager = HostContext.GetService<IWindowsServiceControlManager>();
