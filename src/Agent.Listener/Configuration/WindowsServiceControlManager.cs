@@ -112,7 +112,11 @@ namespace Microsoft.VisualStudio.Services.Agent.Listener.Configuration
             string serviceName = File.ReadAllText(serviceConfigPath);
             if (CheckServiceExists(serviceName))
             {
+                StopService(serviceName);
                 UninstallService(serviceName);
+
+                // Remove registry key only on Windows
+                _windowsServiceHelper.DeleteVstsAgentRegistryKey();
             }
 
             IOUtil.DeleteFile(serviceConfigPath);
@@ -128,6 +132,46 @@ namespace Microsoft.VisualStudio.Services.Agent.Listener.Configuration
 
             File.WriteAllText(serviceConfigPath, serviceName, new UTF8Encoding(false));
             File.SetAttributes(serviceConfigPath, File.GetAttributes(serviceConfigPath) | FileAttributes.Hidden);
+        }
+
+        public void StopService(string serviceName)
+        {
+            Trace.Entering();
+            try
+            {
+                ServiceController service = _windowsServiceHelper.TryGetServiceController(serviceName);
+                if (service != null)
+                {
+                    if (service.Status == ServiceControllerStatus.Running)
+                    {
+                        Trace.Info("Trying to stop the service");
+                        service.Stop();
+
+                        try
+                        {
+                            _term.WriteLine(StringUtil.Loc("WaitForServiceToStop"));
+                            service.WaitForStatus(ServiceControllerStatus.Stopped, TimeSpan.FromSeconds(35));
+                        }
+                        catch (System.ServiceProcess.TimeoutException)
+                        {
+                            throw new InvalidOperationException(StringUtil.Loc("CanNotStopService", serviceName));
+                        }
+                    }
+
+                    Trace.Info("Successfully stopped the service");
+                }
+                else
+                {
+                    Trace.Info(StringUtil.Loc("CanNotFindService", serviceName));
+                }
+            }
+            catch (Exception exception)
+            {
+                Trace.Error(exception);
+                _term.WriteError(StringUtil.Loc("CanNotStopService", serviceName));
+
+                // Log the exception but do not report it as error. We can try uninstalling the service and then report it as error if something goes wrong.
+            }
         }
 
         public void StartService(string serviceName)
@@ -164,43 +208,6 @@ namespace Microsoft.VisualStudio.Services.Agent.Listener.Configuration
         private void UninstallService(string serviceName)
         {
             Trace.Entering();
-
-            try
-            {
-                ServiceController service = _windowsServiceHelper.TryGetServiceController(serviceName);
-                if (service != null)
-                {
-                    if (service.Status == ServiceControllerStatus.Running)
-                    {
-                        Trace.Info("Trying to stop the service");
-                        service.Stop();
-
-                        try
-                        {
-                            _term.WriteLine(StringUtil.Loc("WaitForServiceToStop"));
-                            service.WaitForStatus(ServiceControllerStatus.Stopped, TimeSpan.FromSeconds(35));
-                        }
-                        catch (System.ServiceProcess.TimeoutException)
-                        {
-                            throw new InvalidOperationException(StringUtil.Loc("CanNotStopService", serviceName));
-                        }
-                    }
-
-                    Trace.Info("Successfully stopped the service");
-                }
-                else
-                {
-                    Trace.Info(StringUtil.Loc("CanNotFindService", serviceName));
-                }
-            }
-            catch (Exception exception)
-            {
-                Trace.Error(exception);
-                _term.WriteError(StringUtil.Loc("CanNotStopService", serviceName));
-
-                // Log the exception but do not report it as error. We can try uninstalling the service and then report it as error if something goes wrong.
-            }
-
             IntPtr scmHndl = NativeWindowsServiceHelper.OpenSCManager(null, null, NativeWindowsServiceHelper.ServiceManagerRights.Connect);
 
             if (scmHndl.ToInt64() <= 0)
@@ -248,9 +255,6 @@ namespace Microsoft.VisualStudio.Services.Agent.Listener.Configuration
             {
                 NativeWindowsServiceHelper.CloseServiceHandle(scmHndl);
             }
-
-            // Remove registry key only on Windows
-            _windowsServiceHelper.DeleteVstsAgentRegistryKey();
         }
 
         private bool CheckServiceExists(string serviceName)
