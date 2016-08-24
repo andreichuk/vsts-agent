@@ -103,6 +103,36 @@ namespace Microsoft.VisualStudio.Services.Agent.Listener.Configuration
             _windowsServiceHelper.CreateVstsAgentRegistryKey();
 
             Trace.Info("Configuration was successful, trying to start the service");
+            StartService(serviceName);
+        }
+
+        public void UnconfigureService()
+        {
+            string serviceConfigPath = IOUtil.GetServiceConfigFilePath();
+            string serviceName = File.ReadAllText(serviceConfigPath);
+            if (CheckServiceExists(serviceName))
+            {
+                UninstallService(serviceName);
+            }
+
+            IOUtil.DeleteFile(serviceConfigPath);
+        }
+
+        private void SaveServiceSettings(string serviceName)
+        {
+            string serviceConfigPath = IOUtil.GetServiceConfigFilePath();
+            if (File.Exists(serviceConfigPath))
+            {
+                IOUtil.DeleteFile(serviceConfigPath);
+            }
+
+            File.WriteAllText(serviceConfigPath, serviceName, new UTF8Encoding(false));
+            File.SetAttributes(serviceConfigPath, File.GetAttributes(serviceConfigPath) | FileAttributes.Hidden);
+        }
+
+        public void StartService(string serviceName)
+        {
+            Trace.Entering();
             try
             {
                 ServiceController service = _windowsServiceHelper.TryGetServiceController(serviceName);
@@ -129,30 +159,6 @@ namespace Microsoft.VisualStudio.Services.Agent.Listener.Configuration
                 // If its configured through scripts its mandatory we indicate the failure where configuration failed to start the service
                 throw;
             }
-        }
-
-        public void UnconfigureService()
-        {
-            string serviceConfigPath = IOUtil.GetServiceConfigFilePath();
-            string serviceName = File.ReadAllText(serviceConfigPath);
-            if (CheckServiceExists(serviceName))
-            {
-                UninstallService(serviceName);
-            }
-
-            IOUtil.DeleteFile(serviceConfigPath);
-        }
-
-        private void SaveServiceSettings(string serviceName)
-        {
-            string serviceConfigPath = IOUtil.GetServiceConfigFilePath();
-            if (File.Exists(serviceConfigPath))
-            {
-                IOUtil.DeleteFile(serviceConfigPath);
-            }
-
-            File.WriteAllText(serviceConfigPath, serviceName, new UTF8Encoding(false));
-            File.SetAttributes(serviceConfigPath, File.GetAttributes(serviceConfigPath) | FileAttributes.Hidden);
         }
 
         private void UninstallService(string serviceName)
