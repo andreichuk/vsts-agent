@@ -236,15 +236,13 @@ namespace Microsoft.VisualStudio.Services.Agent.Listener.Configuration
                 Trace.Info($"Agent server url resolve by server: '{agentServerUrl}'.");
 
                 // we need make sure the Host component of the url remain the same.
-                Uri inputServerUrl = new Uri(serverUrl);
-                Uri serverReturnedServerUrl = new Uri(agentServerUrl);
-                if (Uri.Compare(inputServerUrl, serverReturnedServerUrl, UriComponents.Host, UriFormat.Unescaped, StringComparison.OrdinalIgnoreCase) != 0)
+                UriBuilder inputServerUrl = new UriBuilder(serverUrl);
+                UriBuilder serverReturnedServerUrl = new UriBuilder(agentServerUrl);
+                if (Uri.Compare(inputServerUrl.Uri, serverReturnedServerUrl.Uri, UriComponents.Host, UriFormat.Unescaped, StringComparison.OrdinalIgnoreCase) != 0)
                 {
-                    UriBuilder replaceHostUrl = new UriBuilder(serverReturnedServerUrl);
-                    replaceHostUrl.Host = inputServerUrl.Host;
-
-                    Trace.Info($"Replace server returned url's host component with user input server url's host: '{replaceHostUrl.Uri.AbsoluteUri}'.");
-                    serverUrl = replaceHostUrl.Uri.AbsoluteUri;
+                    inputServerUrl.Path = serverReturnedServerUrl.Path;
+                    Trace.Info($"Replace server returned url's host component with user input server url's host: '{inputServerUrl.Uri.AbsoluteUri}'.");
+                    serverUrl = inputServerUrl.Uri.AbsoluteUri;
                 }
                 else
                 {

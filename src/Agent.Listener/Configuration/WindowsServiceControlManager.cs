@@ -36,7 +36,9 @@ namespace Microsoft.VisualStudio.Services.Agent.Listener.Configuration
             Trace.Entering();
             // TODO: Fix bug that exists in the legacy Windows agent where configuration using mirrored credentials causes an error, but the agent is still functional (after restarting). Mirrored credentials is a supported scenario and shouldn't manifest any errors.
 
+            // We use NetworkService as default account.
             NTAccount defaultServiceAccount = _windowsServiceHelper.GetDefaultServiceAccount();
+
             _logonAccount = command.GetWindowsLogonAccount(defaultValue: defaultServiceAccount.ToString());
             NativeWindowsServiceHelper.GetAccountSegments(_logonAccount, out _domainName, out _userName);
             if ((string.IsNullOrEmpty(_domainName) || _domainName.Equals(".", StringComparison.CurrentCultureIgnoreCase)) && !_logonAccount.Contains('@'))
@@ -95,8 +97,13 @@ namespace Microsoft.VisualStudio.Services.Agent.Listener.Configuration
                 }
             }
 
+            Trace.Info("Create local group and grant folder permission to service logon account.");
+            GrantDirectoryPermissionForAccount();
+
+            // install service.
             _windowsServiceHelper.InstallService(serviceName, serviceDisplayName, _logonAccount, logonPassword);
 
+            // create .service file with service name.
             SaveServiceSettings(serviceName);
 
             // Add registry key after installation
@@ -104,6 +111,60 @@ namespace Microsoft.VisualStudio.Services.Agent.Listener.Configuration
 
             Trace.Info("Configuration was successful, trying to start the service");
             StartService(serviceName);
+        }
+
+        private void GrantDirectoryPermissionForAccount()
+        {
+            Trace.Entering();
+            string groupName = _windowsServiceHelper.GetUniqueBuildGroupName();
+            Trace.Info(StringUtil.Format("Calculated unique group name {0}", groupName));
+
+            if (!_windowsServiceHelper.LocalGroupExists(groupName))
+            {
+                Trace.Info(StringUtil.Format("Trying to create group {0}", groupName));
+                _windowsServiceHelper.CreateLocalGroup(groupName);
+            }
+
+            Trace.Info(StringUtil.Format("Trying to add userName {0} to the group {0}", _logonAccount, groupName));
+            _windowsServiceHelper.AddMemberToLocalGroup(_logonAccount, groupName);
+
+            // grant permssion for agent root folder
+            string agentRoot = IOUtil.GetRootPath();
+            Trace.Info(StringUtil.Format("Set full access control to group for the folder {0}", agentRoot));
+            _windowsServiceHelper.GrantFullControlToGroup(agentRoot, groupName);
+
+            // grant permssion for work folder
+            string workFolder = IOUtil.GetWorkPath(HostContext);
+            Directory.CreateDirectory(workFolder);
+            Trace.Info(StringUtil.Format("Set full access control to group for the folder {0}", workFolder));
+            _windowsServiceHelper.GrantFullControlToGroup(workFolder, groupName);
+        }
+
+        private void RevokeDirectoryPermissionForAccount()
+        {
+            Trace.Entering();
+            string groupName = _windowsServiceHelper.GetUniqueBuildGroupName();
+            Trace.Info(StringUtil.Format("Calculated unique group name {0}", groupName));
+
+            // remove the group from the work folder
+            string workFolder = IOUtil.GetWorkPath(HostContext);
+            if (Directory.Exists(workFolder))
+            {
+                Trace.Info(StringUtil.Format($"Remove the group {groupName} for the folder {workFolder}."));
+                _windowsServiceHelper.RemoveGroupFromFolderSecuritySetting(workFolder, groupName);
+            }
+
+            //remove group from agent root folder
+            string agentRoot = IOUtil.GetRootPath();
+            if (Directory.Exists(agentRoot))
+            {
+                Trace.Info(StringUtil.Format($"Remove the group {groupName} for the folder {agentRoot}."));
+                _windowsServiceHelper.RemoveGroupFromFolderSecuritySetting(agentRoot, groupName);
+            }
+
+            //delete group
+            Trace.Info(StringUtil.Format($"Delete the group {groupName}."));
+            _windowsServiceHelper.DeleteLocalGroup(groupName);
         }
 
         public void UnconfigureService()
@@ -114,6 +175,9 @@ namespace Microsoft.VisualStudio.Services.Agent.Listener.Configuration
             {
                 StopService(serviceName);
                 UninstallService(serviceName);
+
+                // Delete local group we created during confiure.
+                RevokeDirectoryPermissionForAccount();
 
                 // Remove registry key only on Windows
                 _windowsServiceHelper.DeleteVstsAgentRegistryKey();
@@ -251,10 +315,6 @@ namespace Microsoft.VisualStudio.Services.Agent.Listener.Configuration
                 ServiceController service = _windowsServiceHelper.TryGetServiceController(serviceName);
                 if (service != null)
                 {
-                    // TODO Fix this to add permission, this is to make NT Authority\Local Service run as service
-                    var windowsSecurityManager = HostContext.GetService<INativeWindowsServiceHelper>();
-                    windowsSecurityManager.SetPermissionForAccount(IOUtil.GetRootPath(), _logonAccount);
-
                     service.Start();
                     _term.WriteLine(StringUtil.Loc("ServiceStartedSuccessfully", serviceName));
                 }
