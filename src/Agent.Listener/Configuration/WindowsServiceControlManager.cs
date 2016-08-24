@@ -134,77 +134,6 @@ namespace Microsoft.VisualStudio.Services.Agent.Listener.Configuration
             File.SetAttributes(serviceConfigPath, File.GetAttributes(serviceConfigPath) | FileAttributes.Hidden);
         }
 
-        public void StopService(string serviceName)
-        {
-            Trace.Entering();
-            try
-            {
-                ServiceController service = _windowsServiceHelper.TryGetServiceController(serviceName);
-                if (service != null)
-                {
-                    if (service.Status == ServiceControllerStatus.Running)
-                    {
-                        Trace.Info("Trying to stop the service");
-                        service.Stop();
-
-                        try
-                        {
-                            _term.WriteLine(StringUtil.Loc("WaitForServiceToStop"));
-                            service.WaitForStatus(ServiceControllerStatus.Stopped, TimeSpan.FromSeconds(35));
-                        }
-                        catch (System.ServiceProcess.TimeoutException)
-                        {
-                            throw new InvalidOperationException(StringUtil.Loc("CanNotStopService", serviceName));
-                        }
-                    }
-
-                    Trace.Info("Successfully stopped the service");
-                }
-                else
-                {
-                    Trace.Info(StringUtil.Loc("CanNotFindService", serviceName));
-                }
-            }
-            catch (Exception exception)
-            {
-                Trace.Error(exception);
-                _term.WriteError(StringUtil.Loc("CanNotStopService", serviceName));
-
-                // Log the exception but do not report it as error. We can try uninstalling the service and then report it as error if something goes wrong.
-            }
-        }
-
-        public void StartService(string serviceName)
-        {
-            Trace.Entering();
-            try
-            {
-                ServiceController service = _windowsServiceHelper.TryGetServiceController(serviceName);
-                if (service != null)
-                {
-                    // TODO Fix this to add permission, this is to make NT Authority\Local Service run as service
-                    var windowsSecurityManager = HostContext.GetService<INativeWindowsServiceHelper>();
-                    windowsSecurityManager.SetPermissionForAccount(IOUtil.GetRootPath(), _logonAccount);
-
-                    service.Start();
-                    _term.WriteLine(StringUtil.Loc("ServiceStartedSuccessfully", serviceName));
-                }
-                else
-                {
-                    throw new InvalidOperationException(StringUtil.Loc("CanNotFindService", serviceName));
-                }
-            }
-            catch (Exception exception)
-            {
-                Trace.Error(exception);
-                _term.WriteError(StringUtil.Loc("CanNotStartService"));
-
-                // This is the last step in the configuration. Even if the start failed the status of the configuration should be error
-                // If its configured through scripts its mandatory we indicate the failure where configuration failed to start the service
-                throw;
-            }
-        }
-
         private void UninstallService(string serviceName)
         {
             Trace.Entering();
@@ -257,6 +186,46 @@ namespace Microsoft.VisualStudio.Services.Agent.Listener.Configuration
             }
         }
 
+        private void StopService(string serviceName)
+        {
+            Trace.Entering();
+            try
+            {
+                ServiceController service = _windowsServiceHelper.TryGetServiceController(serviceName);
+                if (service != null)
+                {
+                    if (service.Status == ServiceControllerStatus.Running)
+                    {
+                        Trace.Info("Trying to stop the service");
+                        service.Stop();
+
+                        try
+                        {
+                            _term.WriteLine(StringUtil.Loc("WaitForServiceToStop"));
+                            service.WaitForStatus(ServiceControllerStatus.Stopped, TimeSpan.FromSeconds(35));
+                        }
+                        catch (System.ServiceProcess.TimeoutException)
+                        {
+                            throw new InvalidOperationException(StringUtil.Loc("CanNotStopService", serviceName));
+                        }
+                    }
+
+                    Trace.Info("Successfully stopped the service");
+                }
+                else
+                {
+                    Trace.Info(StringUtil.Loc("CanNotFindService", serviceName));
+                }
+            }
+            catch (Exception exception)
+            {
+                Trace.Error(exception);
+                _term.WriteError(StringUtil.Loc("CanNotStopService", serviceName));
+
+                // Log the exception but do not report it as error. We can try uninstalling the service and then report it as error if something goes wrong.
+            }
+        }
+
         private bool CheckServiceExists(string serviceName)
         {
             Trace.Entering();
@@ -270,6 +239,37 @@ namespace Microsoft.VisualStudio.Services.Agent.Listener.Configuration
                 Trace.Error(exception);
 
                 // If we can't check the status of the service, probably we can't do anything else too. Report it as error.
+                throw;
+            }
+        }
+
+        private void StartService(string serviceName)
+        {
+            Trace.Entering();
+            try
+            {
+                ServiceController service = _windowsServiceHelper.TryGetServiceController(serviceName);
+                if (service != null)
+                {
+                    // TODO Fix this to add permission, this is to make NT Authority\Local Service run as service
+                    var windowsSecurityManager = HostContext.GetService<INativeWindowsServiceHelper>();
+                    windowsSecurityManager.SetPermissionForAccount(IOUtil.GetRootPath(), _logonAccount);
+
+                    service.Start();
+                    _term.WriteLine(StringUtil.Loc("ServiceStartedSuccessfully", serviceName));
+                }
+                else
+                {
+                    throw new InvalidOperationException(StringUtil.Loc("CanNotFindService", serviceName));
+                }
+            }
+            catch (Exception exception)
+            {
+                Trace.Error(exception);
+                _term.WriteError(StringUtil.Loc("CanNotStartService"));
+
+                // This is the last step in the configuration. Even if the start failed the status of the configuration should be error
+                // If its configured through scripts its mandatory we indicate the failure where configuration failed to start the service
                 throw;
             }
         }
